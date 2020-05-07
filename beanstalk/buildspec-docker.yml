@@ -1,0 +1,60 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      java: openjdk8
+  pre_build:
+    commands:
+      - make setup
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the java app
+      - cd beanstalk/app
+      - docker run --rm -u root -v `pwd`:/home/gradle/project -w /home/gradle/project gradle:4.3 gradle build
+      - echo Building the Docker image...
+      - cd .. && docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - |
+        echo 'Building Dockerrun.aws.json'
+        cat >../Dockerrun.aws.json <<EOL
+        {
+          "AWSEBDockerrunVersion": "1",
+          "Image": {
+            "Name": "$REPOSITORY_URI:$IMAGE_TAG",
+            "Update": "true"
+          },
+          "Ports": [
+            {
+              "ContainerPort": "5000"
+            }
+          ],
+          "Volumes": [
+            {
+              "HostDirectory": "/var/app/mydb",
+              "ContainerDirectory": "/etc/mysql"
+            }
+          ],
+          "Logging": "/var/log/nginx"
+        }
+        EOL
+      - echo Formatted Dockerrun.aws.json as
+      - pwd
+      - cat ../Dockerrun.aws.json
+artifacts:
+  files:
+    - "Dockerrun.aws.json"
+    - ".ebextensions"
+  name: build-output

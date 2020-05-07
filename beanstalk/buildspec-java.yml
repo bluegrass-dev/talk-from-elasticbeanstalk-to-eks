@@ -1,0 +1,19 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      java: openjdk8
+    commands:
+  build:
+    commands:
+      - make setup
+      - cd beanstalk/app && ./gradlew build && cd ../..
+      - cp -R beanstalk/.ebextensions beanstalk/app
+artifacts:
+  files:
+    - "build/libs/*.jar"
+    - "Procfile"
+    - ".ebextensions/**/*"
+    - "**/*"
+  name: build-output
+  base-directory: beanstalk/app

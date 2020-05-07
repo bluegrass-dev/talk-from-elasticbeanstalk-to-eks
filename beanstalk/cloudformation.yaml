@@ -1,0 +1,689 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: https://www.bluegrass.dev/talks/from-aws-elastic-beanstalk-to-eks
+Parameters:
+  ApplicationName:
+    Description: Name of our Application under test
+    Type: String
+    Default: scorekeep
+  AppicationDescription:
+    Type: String
+    Default: A sample Java application deployed to ElasticBeanstalk
+  StackSerial:
+    Type: String
+    Description: An 8-alphanumeric string to have friendly but dynamic resource names.
+  GithubOrganization:
+    Type: String
+    Default: bluegrass-dev
+  GithubRepository:
+    Type: String
+    Default: talk-from-elasticbeanstalk-to-eks
+  GithubBranch:
+    Type: String
+    Default: master
+  EmailAddress:
+    Type: String
+Resources:
+  BeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Sub ${ApplicationName}-${StackSerial}
+      Description: !Ref AppicationDescription
+  JavaBeanstalkApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref BeanstalkApplication
+      Description: AWS ElasticBeanstalk Sample Application Version
+      SourceBundle:
+        S3Bucket: !Sub "elasticbeanstalk-samples-${AWS::Region}"
+        S3Key: elasticbeanstalk-sampleapp.war
+  JavaBeanstalkConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref BeanstalkApplication
+      Description: AWS ElasticBeanstalk Java Configuration Template
+      PlatformArn: !Sub arn:aws:elasticbeanstalk:${AWS::Region}::platform/Java 8 running on 64bit Amazon Linux/2.10.7
+      # SolutionStackName: 64bit Amazon Linux 2018.03 v2.10.4 running Java 8
+      OptionSettings:
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: "1"
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: "1"
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: "aws:elasticbeanstalk:environment"
+          OptionName: ServiceRole
+          Value: !Ref ServiceRole
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: !Ref InstanceProfile
+        - Namespace: "aws:elasticbeanstalk:healthreporting:system"
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: "aws:elasticbeanstalk:healthreporting:system"
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_REGION
+          Value: !Ref AWS::Region
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: NOTIFICATION_TOPIC
+          Value: !Ref notificationTopic
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: NOTIFICATION_EMAIL
+          Value: !Ref EmailAddress
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: USER_TABLE
+          Value: !Ref userTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SESSION_TABLE
+          Value: !Ref sessionTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: GAME_TABLE
+          Value: !Ref gameTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: MOVE_TABLE
+          Value: !Ref moveTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: STATE_TABLE
+          Value: !Ref stateTable
+        # - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+        #   OptionName: StreamLogs
+        #   Value: "true"
+  JavaBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref BeanstalkApplication
+      EnvironmentName: !Sub ${ApplicationName}-java-${StackSerial}
+      Description: AWS ElasticBeanstalk Sample Environment
+      CNAMEPrefix: scorekeep-java
+      TemplateName: !Ref JavaBeanstalkConfigurationTemplate
+  DockerBeanstalkApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref BeanstalkApplication
+      Description: AWS ElasticBeanstalk Sample Application Version
+      SourceBundle:
+        S3Bucket: !Sub "elasticbeanstalk-samples-${AWS::Region}"
+        S3Key: docker-sample-v3.zip
+  DockerBeanstalkConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref BeanstalkApplication
+      Description: AWS ElasticBeanstalk Docker Configuration Template
+      PlatformArn: !Sub arn:aws:elasticbeanstalk:${AWS::Region}::platform/Docker running on 64bit Amazon Linux/2.15.0
+      # SolutionStackName: 64bit Amazon Linux 2 v3.0.0 running Docker
+      OptionSettings:
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: "1"
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: "1"
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: "aws:elasticbeanstalk:environment"
+          OptionName: ServiceRole
+          Value: !Ref ServiceRole
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: !Ref InstanceProfile
+        - Namespace: "aws:elasticbeanstalk:healthreporting:system"
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_REGION
+          Value: !Ref AWS::Region
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: NOTIFICATION_TOPIC
+          Value: !Ref notificationTopic
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: NOTIFICATION_EMAIL
+          Value: !Ref EmailAddress
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: USER_TABLE
+          Value: !Ref userTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SESSION_TABLE
+          Value: !Ref sessionTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: GAME_TABLE
+          Value: !Ref gameTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: MOVE_TABLE
+          Value: !Ref moveTable
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: STATE_TABLE
+          Value: !Ref stateTable
+  DockerBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref BeanstalkApplication
+      EnvironmentName: !Sub ${ApplicationName}-docker-${StackSerial}
+      Description: AWS ElasticBeanstalk Docker Environment
+      CNAMEPrefix: scorekeep-docker
+      TemplateName: !Ref DockerBeanstalkConfigurationTemplate
+      VersionLabel: !Ref DockerBeanstalkApplicationVersion
+  notificationTopic:
+    Type: AWS::SNS::Topic
+  userTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        HashKeyElement: { AttributeName: id, AttributeType: S }
+      ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+  sessionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        HashKeyElement: { AttributeName: id, AttributeType: S }
+      ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+  gameTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+        - AttributeName: "session"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+      GlobalSecondaryIndexes:
+        - IndexName: "session-index"
+          KeySchema:
+            - AttributeName: "session"
+              KeyType: "HASH"
+          ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+          Projection: { ProjectionType: ALL }
+      ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+  moveTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+        - AttributeName: "game"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+      GlobalSecondaryIndexes:
+        - IndexName: "game-index"
+          KeySchema:
+            - AttributeName: "game"
+              KeyType: "HASH"
+          ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+          Projection: { ProjectionType: ALL }
+      ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+  stateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+        - AttributeName: "game"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+      GlobalSecondaryIndexes:
+        - IndexName: "game-index"
+          KeySchema:
+            - AttributeName: "game"
+              KeyType: "HASH"
+          ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+          Projection: { ProjectionType: ALL }
+      ProvisionedThroughput: { ReadCapacityUnits: 2, WriteCapacityUnits: 2 }
+
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ""
+            Effect: Allow
+            Principal:
+              Service: elasticbeanstalk.amazonaws.com
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "sts:ExternalId": elasticbeanstalk
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeInstanceHealth
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:GetConsoleOutput
+                  - ec2:AssociateAddress
+                  - ec2:DescribeAddresses
+                  - ec2:DescribeSecurityGroups
+                  - sqs:GetQueueAttributes
+                  - sqs:GetQueueUrl
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeAutoScalingInstances
+                  - autoscaling:DescribeScalingActivities
+                  - autoscaling:DescribeNotificationConfigurations
+                Resource:
+                  - "*"
+      Path: /
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceProfileRole
+  InstanceProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: BucketAccess
+                Action:
+                  - "s3:Get*"
+                  - "s3:List*"
+                  - "s3:PutObject"
+                Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:s3:::elasticbeanstalk-*-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::elasticbeanstalk-*-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::elasticbeanstalk-*-${AWS::AccountId}-*"
+                  - !Sub "arn:aws:s3:::elasticbeanstalk-*-${AWS::AccountId}-*/*"
+              - Sid: ECSAccess
+                Effect: Allow
+                Action:
+                  - "ecs:StartTask"
+                  - "ecs:StopTask"
+                  - "ecs:RegisterContainerInstance"
+                  - "ecs:DeregisterContainerInstance"
+                  - "ecs:DescribeContainerInstances"
+                  - "ecs:DiscoverPollEndpoint"
+                  - "ecs:Submit*"
+                  - "ecs:Poll"
+                Resource: "*"
+              - Sid: QueueAccess
+                Action:
+                  - "sqs:ChangeMessageVisibility"
+                  - "sqs:DeleteMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:SendMessage"
+                Effect: Allow
+                Resource: "*"
+              - Sid: DynamoPeriodicTasks
+                Action:
+                  - "dynamodb:BatchGetItem"
+                  - "dynamodb:BatchWriteItem"
+                  - "dynamodb:DeleteItem"
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Query"
+                  - "dynamodb:Scan"
+                  - "dynamodb:UpdateItem"
+                Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:dynamodb:*:${AWS::AccountId}:table/*-stack-AWSEBWorkerCronLeaderRegistry*"
+              - Sid: MetricsAccess
+                Action:
+                  - "cloudwatch:PutMetricData"
+                Effect: Allow
+                Resource: "*"
+              - Sid: ResourceAccess
+                Action:
+                  - "*"
+                Effect: Allow
+                Resource:
+                  - "arn:aws:dynamodb:*:*:table/scorekeep-*"
+                  - "arn:aws:sns:*:*:scorekeep-*"
+              - Sid: ECRAuthAccess
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource:
+                  - "*"
+              - Sid: ECRReadAccess
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetRepositoryPolicy
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:DescribeImages
+                  - ecr:BatchGetImage
+                  - ecr:GetLifecyclePolicy
+                  - ecr:GetLifecyclePolicyPreview
+                  - ecr:ListTagsForResource
+                  - ecr:DescribeImageScanFindings
+                Resource:
+                  - !GetAtt ECRRepo.Arn
+      Path: /
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                  - lambda:InvokeFunction
+                  - lambda:ListFunctions
+                  - lambda:InvokeAsyc
+                Resource:
+                  - "*"
+        - PolicyName: CodePipelineCodeAndArtifactsS3Bucket
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub arn:aws:s3:::${CodePipelineArtifactStore}/*
+        - PolicyName: codepipeline-build
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource:
+                  - "*"
+        - PolicyName: codepipeline-beanstalk
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::codepipeline*
+                  - arn:aws:s3:::elasticbeanstalk*
+              - Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - elasticbeanstalk:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - s3:*
+                  - sns:*
+                  - cloudformation:*
+                  - rds:*
+                  - sqs:*
+                  - ecs:*
+                  - iam:PassRole
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - lambda:ListFunctions
+                Resource:
+                  - "*"
+  CodePipelineArtifactStore:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: "Enabled"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  BuildAppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: CodeBuildLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ApplicationName}-${StackSerial}-java"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ApplicationName}-${StackSerial}-java:*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ApplicationName}-${StackSerial}-docker"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ApplicationName}-${StackSerial}-docker:*"
+        - PolicyName: CodeBuildArtifactsBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::${CodePipelineArtifactStore}/*"
+        - PolicyName: CodeBuildPublishImageAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:*
+                Resource:
+                  - "*"
+  BuildJavaProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${ApplicationName}-${StackSerial}-java
+      Description: !Sub "Build ${ApplicationName} java"
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: beanstalk/buildspec-java.yml
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:2.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Type: PLAINTEXT
+            Value: !Sub ${AWS::Region}
+      ServiceRole: !Ref BuildAppRole
+  BuildDockerProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${ApplicationName}-${StackSerial}-docker
+      Description: !Sub "Build ${ApplicationName} docker"
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: beanstalk/buildspec-docker.yml
+      Environment:
+        ComputeType: BUILD_GENERAL1_LARGE
+        Image: aws/codebuild/standard:2.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Type: PLAINTEXT
+            Value: !Sub ${AWS::AccountId}
+          - Name: AWS_DEFAULT_REGION
+            Type: PLAINTEXT
+            Value: !Sub ${AWS::Region}
+          - Name: ECR_REPO
+            Type: PLAINTEXT
+            Value: !Ref ECRRepo
+      ServiceRole: !Ref BuildAppRole
+  ECRRepo:
+    Type: AWS::ECR::Repository
+    # Properties:
+    # RepositoryName: !Sub scorekeep-${StackSerial}
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub ${ApplicationName}-${StackSerial}
+      RestartExecutionOnUpdate: False
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      ArtifactStore:
+        Location: !Ref CodePipelineArtifactStore
+        Type: S3
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceJava
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: "1"
+              Configuration:
+                Owner: !Ref GithubOrganization
+                Repo: !Ref GithubRepository
+                Branch: !Ref GithubBranch
+                OAuthToken: "{{resolve:secretsmanager:github-token}}"
+              OutputArtifacts:
+                - Name: SourceJavaArtifact
+              RunOrder: 1
+            - Name: SourceDocker
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: "1"
+              Configuration:
+                Owner: !Ref GithubOrganization
+                Repo: !Ref GithubRepository
+                Branch: !Ref GithubBranch
+                OAuthToken: "{{resolve:secretsmanager:github-token}}"
+              OutputArtifacts:
+                - Name: SourceDockerArtifact
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildJava
+              InputArtifacts:
+                - Name: SourceJavaArtifact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: DeploymentJavaArtifact
+              Configuration:
+                ProjectName: !Ref BuildJavaProject
+                PrimarySource: SourceJavaArtifact
+              RunOrder: 1
+            - Name: BuildDocker
+              InputArtifacts:
+                - Name: SourceDockerArtifact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: DeploymentDockerArtifact
+              Configuration:
+                ProjectName: !Ref BuildDockerProject
+                PrimarySource: SourceDockerArtifact
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployJava
+              InputArtifacts:
+                - Name: DeploymentJavaArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: ElasticBeanstalk
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ApplicationName: !Sub ${ApplicationName}-${StackSerial}
+                EnvironmentName: !Ref JavaBeanstalkEnvironment
+            - Name: DeployDocker
+              InputArtifacts:
+                - Name: DeploymentDockerArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: ElasticBeanstalk
+                Version: "1"
+              RunOrder: 1
+              Configuration:
+                ApplicationName: !Sub ${ApplicationName}-${StackSerial}
+                EnvironmentName: !Ref DockerBeanstalkEnvironment
+Outputs:
+  JavaEnvironmentEndpoint:
+    Description: Java Website URL
+    Value: !GetAtt JavaBeanstalkEnvironment.EndpointURL
+  DockerEnvironmentEndpooint:
+    Description: Docker Website URL
+    Value: !GetAtt DockerBeanstalkEnvironment.EndpointURL
